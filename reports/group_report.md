@@ -1,196 +1,181 @@
-# Group Report — Day 06 Data Lab (Field-to-Release PoC)
+﻿# Group Report - Day 06 Data Lab (Field-to-Release PoC)
 
-> Mọi số liệu lấy từ file do script sinh ra: `out/poc/run_info.json`, `out/poc/decision.json`, `out/poc/ranked_review.csv`, `out/baseline/run_info.json`.
-> 3–5 trang.
+## 00 - Header
 
-## 00 · Header
-
-| Mục | Giá trị |
+| Muc | Gia tri |
 |---|---|
 | Group ID | G01 |
-| Challenge | T02 · Raw QC Triage — Phát hiện ảnh lỗi kỹ thuật (mờ, tối, cháy sáng) |
-| Thành viên + vai trò | 1. Luong Duc Manh — 2A202603155 (Lead / Algorithm / Report / QA) |
+| Challenge | T02 - Raw QC Triage (Phat hien anh loi ky thuat: mo, toi, chay sang) |
+| Thanh vien + vai tro | 1. Luong Duc Manh - 2A202603155 (Lead / Algorithm / Report / QA) |
 | Git URL | https://github.com/ldmanh610/K5-Day6-L2A-LuongDucManh-2A202603155-DataGovernanceAndPrivacy |
-| Tag `demo-180m` (commit) | (chạy: `git tag -a demo-180m -m "Demo freeze" && git push origin demo-180m`) |
-| Tag `final-24h` (commit) | (chạy: `git tag -a final-24h -m "Final submission" && git push origin final-24h`) |
-| Deadline (giờ VN) | 2026-11-15 15:00 ICT |
+| Tag demo-180m | git tag -a demo-180m -m "Demo freeze" && git push origin demo-180m |
+| Tag final-24h | git tag -a final-24h -m "Final submission" && git push origin final-24h |
+| Deadline | 2026-11-15 15:00 ICT |
 
-## 01 · Problem statement
+## 01 - Problem statement
 
-- **Ai bị ảnh hưởng:** Kỹ sư data và model owner — nếu ảnh đầu vào bị mờ/tối/cháy sáng lọt vào tập train, chất lượng mô hình AI xe tự lái sẽ suy giảm mà không có cảnh báo.
-- **Điểm nghẽn cụ thể:** Trong 96 ảnh raw thu thập từ 2 camera (cam_A, cam_B) qua 3 điều kiện ánh sáng (day, dusk, night), một phần bị lỗi kỹ thuật nhưng không có nhãn tự động → phải review toàn bộ bằng tay = tốn kém.
-- **Đầu vào → đầu ra:** `fixtures/t02_raw_qc/images.csv` (96 ảnh, metadata: image_id / path / camera_id / light / split) → `out/poc/ranked_review.csv` (image_id, score, pred_defect_type, pred_action, reason) + `out/poc/contact_sheet.html` + `out/poc/decision.json`.
-- **Tiêu chí GO / REWORK (đã chốt lúc 15:00 ngày 14/11/2026, trước khi xem eval):**
-  - **REWORK:** tỉ lệ RECAPTURE trong top-20 ≥ 30%
-  - **GO:** tỉ lệ RECAPTURE trong top-20 < 30%
-  - Ngưỡng 0.30 đóng băng trong code `src/pipeline.py::decide()` trước khi nhìn kết quả eval.
-- **Giả định (cần DPO/legal xác nhận):** Dữ liệu synthetic CC0 — không có PII thật; phương pháp chỉ đánh giá chất lượng kỹ thuật (không phân tích nội dung ảnh người/biển số).
+- **Ai bi anh huong:** Ky su data va model owner -- neu anh dau vao bi mo/toi/chay sang lot vao tap train, chat luong mo hinh AI xe tu lai se suy giam ma khong co canh bao.
+- **Diem nghen cu the:** Trong 96 anh raw tu 2 camera (cam_A, cam_B) qua 3 dieu kien anh sang (day, dusk, night), mot phan bi loi ky thuat nhung khong co nhan tu dong -> phai review toan bo bang tay = ton kem.
+- **Dau vao -> dau ra:** `fixtures/t02_raw_qc/images.csv` (96 anh, metadata: image_id / path / camera_id / light / split) -> `out/poc/ranked_review.csv` (image_id, score, pred_defect_type, pred_action, reason) + `out/poc/contact_sheet.html` + `out/poc/decision.json`.
+- **Tieu chi REWORK / GO (chot 15:00 ngay 14/11/2026, truoc khi xem eval):**
+  - REWORK: ti le RECAPTURE trong top-20 >= 30%
+  - GO: ti le RECAPTURE trong top-20 < 30%
+  - Nguong 0.30 dong bang trong code `src/pipeline.py::decide()`.
+- **Gia dinh (can DPO/legal xac nhan):** Du lieu synthetic CC0 -- khong co PII that; phuong phap chi danh gia chat luong ky thuat anh, khong phan tich noi dung.
 
-## 02 · Data & provenance
+## 02 - Data & provenance
 
-| Split | N | Nguồn / link | License | Synthetic? |
+| Split | N | Nguon | License | Synthetic? |
 |---|---|---|---|---|
-| dev | ~58 (60% scene gốc) | `fixtures/t02_raw_qc/images.csv` trong repo | CC0 | Có |
-| eval / heldout | ~38 (40% scene gốc) | `fixtures/t02_raw_qc/images.csv` trong repo | CC0 | Có |
+| dev | ~58 (60% scene goc) | fixtures/t02_raw_qc/images.csv | CC0 | Co |
+| eval / heldout | ~38 (40% scene goc) | fixtures/t02_raw_qc/images.csv | CC0 | Co |
 
-- **Schema:** `image_id, path, camera_id (cam_A/cam_B), light (day/dusk/night), split (dev/eval)`. 96 ảnh × 4 variants = 24 scene.
-- **Seed:** 42. Chia split theo scene_id (2 ký tự đầu của image_id) để tránh rò rỉ dữ liệu.
-- `manifest.csv` verified sha256: lệnh `python -m tools.verify_manifests fixtures/t02_raw_qc/manifest.csv` — kết quả từ preflight: `[OK] t02 fixtures/t02_raw_qc` sau khi fix git `core.autocrlf=false`.
-- **Dữ liệu thật:** Không sử dụng (giảng viên chưa upload `data/real/`).
+- **Schema:** `image_id, path, camera_id (cam_A/cam_B), light (day/dusk/night), split (dev/eval)`. 96 anh, 24 scene x 4 variants.
+- **Seed:** 42. Chia split theo scene_id (2 ky tu dau cua image_id) de tranh ro ri du lieu.
+- `manifest.csv` verified sha256: `python -m tools.verify_manifests fixtures/t02_raw_qc/manifest.csv`
+- **Du lieu that:** Khong su dung (giang vien chua upload data/real/).
 
-## 03 · Research & design
+## 03 - Research & design
 
-**References:**
-| URL | Ngày xem | Ý nghĩa |
+| URL | Ngay xem | Y nghia |
 |---|---|---|
-| https://ieeexplore.ieee.org/document/843417 | 2026-11-14 | Pech-Pacheco et al. (2000) — Laplacian variance làm proxy đo độ nét ảnh; số cao = nét, số thấp = mờ |
-| https://www.iso.org/standard/83083.html | 2026-11-14 | ISO/IEC TR 5259-6:2026 — QC dữ liệu AI, metric review@budget |
-| https://acdc.vision.ee.ethz.ch/ | 2026-11-14 | ACDC dataset — phân loại ảnh xe theo điều kiện thời tiết/ánh sáng, tham khảo cách chia split |
+| https://ieeexplore.ieee.org/document/843417 | 2026-11-14 | Pech-Pacheco et al. (2000) -- Laplacian variance lam proxy do do net anh |
+| https://www.iso.org/standard/83083.html | 2026-11-14 | ISO/IEC TR 5259-6:2026 -- QC du lieu AI, metric review@budget |
+| https://acdc.vision.ee.ethz.ch/ | 2026-11-14 | ACDC dataset -- phan loai anh xe theo dieu kien thoi tiet/anh sang |
 
 **Data flow:**
 ```
-images.csv (96 ảnh)
-  → _extract_features(): Laplacian variance + brightness stats (mean, std, frac_dark, frac_saturated)
-  → _compute_scores(): weighted sum (blur 45% + dark 25% + glare 20% + contrast 10%) + chuẩn hoá theo camera_id
-  → rank(): top-20 → review_queue.csv + contact_sheet.html
-  → review(): áp override nếu reviewer đã điền review_queue_reviewed.csv
-  → decide(): REWORK nếu RECAPTURE rate ≥ 30%, GO nếu không
-  → decision.json + ranked_review.csv
+images.csv (96 anh)
+  -> _extract_features(): Laplacian variance + brightness stats (mean, std, frac_dark, frac_saturated)
+  -> _compute_scores(): weighted sum (blur 45% + dark 25% + glare 20% + contrast 10%)
+                        + chuan hoa theo camera_id
+  -> rank(): top-20 -> review_queue.csv + contact_sheet.html
+  -> review(): ap override neu reviewer da dien review_queue_reviewed.csv
+  -> decide(): REWORK neu RECAPTURE rate >= 30%, GO neu khong
+  -> decision.json + ranked_review.csv
 ```
 
-**Thành phần offline:** Chỉ dùng numpy, scipy, Pillow (không model pretrained, không network call). Kiểm tra bằng `--offline` flag — `[OK] offline guard blocks outbound network`.
+**Thanh phan offline:** Chi dung numpy, scipy, Pillow (khong model pretrained, khong network).
 
-**Trade-offs đã cân nhắc:**
-1. Laplacian đơn giản nhưng cam_B có quang học mềm hơn cam_A → chuẩn hoá theo `camera_id` (chia cho median của từng cam).
-2. `frac_dark` cao ở ảnh đêm hữu ích → risk false alarm; giải pháp: slice report theo `light`.
-3. Không dùng deep learning để đảm bảo chạy offline hoàn toàn và tái hiện 100%.
+**Trade-offs:**
+1. Laplacian don gian nhung cam_B co quang hoc mem hon -> chuan hoa theo camera_id.
+2. frac_dark cao o anh dem -> risk false alarm; giai phap: slice report theo `light`.
+3. Khong dung deep learning de dam bao chay offline hoan toan.
 
-## 04 · Baseline vs PoC
+## 04 - Baseline vs PoC
 
-- **Baseline:** Random score (seed 42) — `src.examples.random_baseline`. Runtime: **1.683s / 96 ảnh**.
-- **PoC:** Multi-feature scoring (Laplacian blur + brightness dark/glare + contrast, chuẩn hoá theo camera). Runtime: **20.18s / 96 ảnh** (CPU-only, feature extraction).
-- Cùng budget B=20 / cùng seed 42 / cùng fixtures `t02_raw_qc`.
+- **Baseline:** Random score (seed 42) -- `src.examples.random_baseline`. Runtime: 1.683s / 96 anh.
+- **PoC:** Multi-feature scoring (Laplacian + brightness dark/glare + contrast, chuan hoa theo camera). Runtime: 20.18s / 96 anh.
+- Cung budget B=20 / cung seed 42 / cung fixtures t02_raw_qc.
 
-**Bảng 1 · Baseline vs PoC** (số liệu từ `out/*/run_info.json` và `out/poc/decision.json`):
+**Bang 1 - Baseline vs PoC** (tu out/*/run_info.json va out/poc/decision.json):
 
-| Metric (unit) | Baseline | PoC | Δ & chú thích |
+| Metric | Baseline | PoC | Ghi chu |
 |---|---|---|---|
-| Primary: Defect Recall@20 | ~0.33 (random) | TBD — cần overlay GT của giảng viên | higher is better |
+| Defect Recall@20 | ~0.33 (random) | TBD (can overlay GT cua giang vien) | higher is better |
 | Precision@20 | ~0.33 (random) | TBD | higher is better |
-| RECAPTURE rate top-20 | random ~50% | 100% (toàn bộ top-20 bị xếp RECAPTURE) | Decision = REWORK |
-| Runtime / 96 items | 1.683s | 20.18s | PoC chậm hơn do feature extraction ảnh |
-| n_items processed | 96 | 96 | Đủ 100% fixture |
+| RECAPTURE rate top-20 | ~50% (random) | 100% | Decision = REWORK |
+| Runtime / 96 items | 1.683s | 20.18s | PoC cham hon do feature extraction |
+| n_items processed | 96 | 96 | Du 100% fixture |
 
-> **Ghi chú:** Điểm chính thức (Defect Recall@20) sẽ được giảng viên chấm sau khi overlay GT lên `ranked_review.csv`. Nhóm không có quyền đọc `fixtures/t02_raw_qc/gt/`.
+## 05 - Evaluation protocol
 
-## 05 · Evaluation protocol
-
-- **Công thức:** Recall@B = #ảnh lỗi thật trong top-B / #ảnh lỗi thật toàn bộ eval split. Precision@B = #ảnh lỗi thật trong top-B / B.
-- **Budget B = 20**, đóng băng trong `configs/tracks/t02.yaml`.
-- **Threshold REWORK:** `recapture_rate >= 0.30`, đóng băng trong `src/pipeline.py::decide()` lúc 15:00 ngày 14/11/2026.
-- **Độ bất định:** N~96 nên CI rộng; sử dụng Wilson CI 95% cho Recall@B và Precision@B nếu cần báo cáo thống kê.
-- **Lệnh chạy chính xác:**
-
+- **Cong thuc:** Recall@B = #anh loi that trong top-B / #anh loi that toan bo eval split
+- **Budget B = 20**, dong bang trong `configs/tracks/t02.yaml`
+- **Threshold REWORK:** `recapture_rate >= 0.30`, dong bang trong `src/pipeline.py::decide()`
+- **Lenh chay:**
 ```bash
-# Setup (1 lần)
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-
-# Chạy PoC
-docker run --rm -v "%cd%:/workspace" -w /workspace day6-fast:latest python -m src.main --config configs/lab.yaml --track t02 --output out/poc --run-name poc --offline --seed 42
-
-# Chạy baseline
-docker run --rm -v "%cd%:/workspace" -w /workspace day6-fast:latest python -m src.main --track t02 --pipeline src.examples.random_baseline --output out/baseline --run-name baseline --offline --seed 42
-
-# Chạy tests
-docker run --rm -v "%cd%:/workspace" -w /workspace day6-fast:latest pytest -q
+docker run --rm -v "%cd%:/workspace" -w /workspace day6-fast:latest \
+  python -m src.main --config configs/lab.yaml --track t02 --output out/poc --run-name poc --offline --seed 42
 ```
 
-## 06 · Result slices
+## 06 - Result slices
 
-| Slice | N | Decision/score | Ghi chú |
-|---|---|---|---|
-| light=day | ~40 | TBD (cần GT) | Ảnh ngày: blur là failure mode chính |
-| light=dusk | ~16 | TBD | Ánh sáng thấp, nguy cơ dark+blur |
-| light=night | ~40 | TBD | Frac_dark cao → risk false alarm |
-| camera=cam_A | ~48 | TBD | Quang học cứng hơn, Laplacian cao hơn |
-| camera=cam_B | ~48 | TBD | Quang học mềm hơn → đã chuẩn hoá |
+| Slice | N | Ghi chu |
+|---|---|---|
+| light=day | ~40 | Anh ngay: blur la failure mode chinh |
+| light=dusk | ~16 | Anh hoang hon: nguy co dark+blur |
+| light=night | ~40 | frac_dark cao -> risk false alarm |
+| camera=cam_A | ~48 | Quang hoc cung hon |
+| camera=cam_B | ~48 | Quang hoc mem hon -> da chuan hoa |
 
-**Failure case 1 — Ảnh đêm hữu ích bị xếp RECAPTURE:**
-Ảnh chụp ban đêm nét nhưng `frac_dark` cao → score tổng cao → lọt top-20 RECAPTURE.
-Root cause: `frac_dark` không phân biệt "tối do thiếu sáng" và "tối do môi trường ban đêm bình thường".
-Khắc phục đề xuất: slice ngưỡng dark_score theo `light == night`.
+**Failure case 1 -- Anh dem net bi xep RECAPTURE:**
+Anh chup ban dem net nhung frac_dark cao -> score cao -> lot top-20 RECAPTURE.
+Root cause: frac_dark khong phan biet "toi do thieu sang" va "toi do moi truong dem".
+Khac phuc: slice nguong dark_score theo `light == night`.
 
-**Failure case 2 — cam_B bị báo nhầm blur:**
-Cam_B có quang học mềm hơn cam_A, Laplacian trung bình thấp hơn → bị báo blur sai.
-Root cause: ngưỡng Laplacian chung cho cả 2 camera.
-Khắc phục: **đã áp dụng** — chia Laplacian cho median của từng `camera_id`.
+**Failure case 2 -- cam_B bi bao nham blur:**
+Cam_B co quang hoc mem hon cam_A, Laplacian trung binh thap hon -> bi bao blur sai.
+Root cause: nguong Laplacian chung cho ca 2 camera.
+Khac phuc: **Da ap dung** -- chia Laplacian cho median cua tung camera_id.
 
-**Latency:** ~210ms/ảnh trên CPU WSL2 (Python 3.12, numpy/scipy/Pillow). 96 ảnh = 20.18s tổng.
+**Latency:** ~210ms/anh tren CPU WSL2 (Python 3.12). 96 anh = 20.18s tong.
 
-## 07 · Human & decision
+## 07 - Human & decision
 
-- **Review queue:** `out/poc/review_queue.csv` (top-20 theo score). Mở `out/poc/contact_sheet.html` bằng Chrome/Edge để xem ảnh trực quan offline.
-- **Override + audit log:** Reviewer điền cột `reviewer_decision` vào `review_queue_reviewed.csv`, copy vào `out/poc/`, chạy lại `python -m src.main ...` → `out/poc/audit_log.jsonl` ghi lại mọi thay đổi.
-- **Decision policy:** `decide()` trong `src/pipeline.py`:
-  - REWORK (reason_code=`HIGH_DEFECT_RATE`) nếu ≥ 30% trong top-20 là RECAPTURE
-  - GO (reason_code=`ACCEPTABLE_DEFECT_RATE`) nếu < 30%
-  - Owner: `LuongDucManh (QC-Engineer)`
-- **Kết quả thực tế:** `decision.json` → `"status": "REWORK"`, `"reason": "RECAPTURE rate in top-20 = 100.0% >= 30%"` — batch này cần chụp lại.
+- **Review queue:** `out/poc/review_queue.csv` (top-20 theo score). Mo `out/poc/contact_sheet.html` bang Chrome/Edge.
+- **Override + audit:** Reviewer dien `reviewer_decision` vao `review_queue_reviewed.csv`, copy vao `out/poc/`, chay lai pipeline -> `out/poc/audit_log.jsonl`.
+- **Decision policy:** REWORK (reason_code=HIGH_DEFECT_RATE) neu >= 30% top-20 la RECAPTURE; GO neu khong. Owner: LuongDucManh (QC-Engineer).
+- **Ket qua thuc te:** decision.json -> status="REWORK", reason="RECAPTURE rate in top-20 = 100.0% >= 30%".
 
-## 08 · Reproduce & tests
+## 08 - Reproduce & tests
 
 ```bash
-# Chạy đầy đủ trong Docker (không cần cài gì thêm trên Windows)
-docker run --rm -v "C:\Users\admin\Downloads\K5-Day6-L2A-LuongDucManh-2A202603155-DataGovernanceAndPrivacy:/workspace" -w /workspace day6-fast:latest python -m src.main --config configs/lab.yaml --track t02 --output out/poc --run-name poc --offline --seed 42
+# Chay PoC
+docker run --rm -v "C:\Users\admin\Downloads\K5-Day6-L2A-LuongDucManh-2A202603155-DataGovernanceAndPrivacy:/workspace" ^
+  -w /workspace day6-fast:latest ^
+  python -m src.main --config configs/lab.yaml --track t02 --output out/poc --run-name poc --offline --seed 42
 
-docker run --rm -v "C:\Users\admin\Downloads\K5-Day6-L2A-LuongDucManh-2A202603155-DataGovernanceAndPrivacy:/workspace" -w /workspace day6-fast:latest pytest -q
+# Chay baseline
+docker run --rm -v "C:\Users\admin\Downloads\K5-Day6-L2A-LuongDucManh-2A202603155-DataGovernanceAndPrivacy:/workspace" ^
+  -w /workspace day6-fast:latest ^
+  python -m src.main --track t02 --pipeline src.examples.random_baseline --output out/baseline --run-name baseline --offline --seed 42
+
+# Chay tests
+docker run --rm -v "C:\Users\admin\Downloads\K5-Day6-L2A-LuongDucManh-2A202603155-DataGovernanceAndPrivacy:/workspace" ^
+  -w /workspace day6-fast:latest pytest -q
 ```
 
-**Output của `pytest -q`:**
+**Output cua pytest -q:**
 ```
 ...s....s...s............................ssssssssssssss................s [ 77%]
 sssssssssssssssssssss                                                    [100%]
-37 passed, 41 skipped — 0 failed
+37 passed, 41 skipped -- 0 failed
 ```
 
-**Môi trường:** Docker `python:3.11-slim` / Python 3.11.18 / Linux WSL2 x86_64 / seed 42
-**Git SHA (commit mới nhất):** `b3c88d8` — `test: update test_cli and verify 100% pytest pass`
+**Moi truong:** Docker python:3.11-slim / Python 3.11.18 / Linux WSL2 / seed 42
+**Git SHA:** b3c88d8 (latest commit)
 
-## 09 · Limitations & ethics
+## 09 - Limitations & ethics
 
-- **Phạm vi:** Chỉ phát hiện lỗi kỹ thuật (độ nét, độ sáng); không kiểm tra nội dung (xe, người, biển số).
-- **False alarms:** Ảnh đêm nét có thể bị xếp RECAPTURE do `frac_dark` cao → reviewer cần kiểm tra `contact_sheet.html`.
-- **Scale 10×:** Với ~960 ảnh, cần batch processing và cache feature để giảm latency từ ~20s xuống còn vài giây.
-- **Privacy:** Dữ liệu synthetic CC0 — không có PII thật. **Không tuyên bố "đạt GDPR / luật Việt Nam"** từ checklist tự động; cần DPO/legal xác nhận trước khi áp dụng vào dữ liệu thật.
-- **Kế hoạch cải tiến:** (1) Thêm ROI-based scoring (vùng biển số/đầu xe); (2) Điều chỉnh ngưỡng dark_score theo `light`; (3) Thử FFT blockiness thay cho DCT 8×8.
+- **Pham vi:** Chi phat hien loi ky thuat; khong kiem tra noi dung (xe, nguoi, bien so).
+- **False alarms:** Anh dem net co the bi xep RECAPTURE vi frac_dark cao -> reviewer can kiem tra contact_sheet.html.
+- **Scale 10x:** Can batch processing va cache feature de giam latency.
+- **Privacy:** Du lieu synthetic CC0, khong co PII that. KHONG tuyen bo "dat GDPR / luat Viet Nam" tu checklist tu dong; can DPO/legal xac nhan truoc khi ap dung vao du lieu that.
+- **Ke hoach cai tien:** (1) ROI-based scoring (vung bien so/dau xe); (2) Dieu chinh nguong dark theo light; (3) Thu FFT blockiness.
 
-## 10 · Team contribution
+## 10 - Team contribution
 
-**Bảng 2 · Individual contribution evidence:**
-
-| Học viên | Git author/email | Module / vai trò | Commit SHA | Trình bày? |
+| Hoc vien | Git email | Module / vai tro | Commit SHA | Trinh bay? |
 |---|---|---|---|---|
-| Luong Duc Manh — 2A202603155 | wazi2752004@gmail.com | Lead + Algorithm + Report + QA + CI | 4c259ee, b3c88d8 | Yes |
+| Luong Duc Manh - 2A202603155 | wazi2752004@gmail.com | Lead + Algorithm + Report + QA | 4c259ee, b3c88d8, 454d77b | Yes |
 
-Chạy để xác nhận: `git shortlog -sne --all`
+## 11 - References
 
-## 11 · References
-
-| URL | Ngày xem | 1–2 dòng ý nghĩa |
+| URL | Ngay xem | Y nghia |
 |---|---|---|
-| https://ieeexplore.ieee.org/document/843417 | 2026-11-14 | Pech-Pacheco et al. (2000) — Laplacian variance làm proxy đo độ nét ảnh cho autofocus |
-| https://www.iso.org/standard/83083.html | 2026-11-14 | ISO/IEC TR 5259-6:2026 — Tiêu chuẩn QC dữ liệu AI, metric review@budget |
-| https://acdc.vision.ee.ethz.ch/ | 2026-11-14 | ACDC dataset — phân loại ảnh xe theo điều kiện thời tiết/ánh sáng, tham khảo split strategy |
+| https://ieeexplore.ieee.org/document/843417 | 2026-11-14 | Pech-Pacheco et al. (2000) -- Laplacian variance proxy do net anh |
+| https://www.iso.org/standard/83083.html | 2026-11-14 | ISO/IEC TR 5259-6:2026 -- Tieu chuan QC du lieu AI |
+| https://acdc.vision.ee.ethz.ch/ | 2026-11-14 | ACDC dataset -- phan loai anh xe theo thoi tiet |
 
 ---
 
-**Bảng 3 · Checklist chốt khi nộp**
+**Bang 3 - Checklist chot khi nop**
 
-- [x] Link repo và tag cuối cùng trong README; input mẫu không chứa PII thật (synthetic CC0).
-- [x] Đúng 1 lệnh run, 1 lệnh tests; không cần download khi chạy (Docker image `day6-fast:latest`).
-- [x] Có baseline (random) + PoC (multi-feature), ≥1 failure case, reviewer evidence (contact_sheet.html), decision log (decision.json).
-- [x] Có license/source provenance (CC0), data splits (dev/eval by scene), seed 42, offline environment.
-- [x] Thành viên có commit thực chất (4c259ee, b3c88d8) và được nêu minh bạch trong bảng trên.
-- [ ] Overlay GT từ giảng viên để lấy Defect Recall@20 chính thức.
-- [ ] Tag `demo-180m` và `final-24h` sau khi nộp.
+- [x] Link repo va tag cuoi cung; input mau khong chua PII that (synthetic CC0).
+- [x] Dung 1 lenh run, 1 lenh tests; khong can download khi chay (Docker image day6-fast:latest).
+- [x] Co baseline (random) + PoC (multi-feature), >=1 failure case, reviewer evidence (contact_sheet.html), decision log (decision.json).
+- [x] Co license/source provenance (CC0), data splits (dev/eval by scene), seed 42, offline environment.
+- [x] Thanh vien co commit thuc chat (4c259ee, b3c88d8, 454d77b) va duoc neu minh bach.
+- [ ] Overlay GT tu giang vien de lay Defect Recall@20 chinh thuc.
+- [ ] Tag demo-180m va final-24h sau khi nop.
