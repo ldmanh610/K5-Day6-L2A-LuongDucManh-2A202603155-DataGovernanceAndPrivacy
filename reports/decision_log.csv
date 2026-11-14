@@ -1,2 +1,3 @@
 ts,scope,status,canonical,reason_code,reason,owner,evidence
 2026-11-14T08:45:47+00:00,t02,REWORK,REWORK,HIGH_DEFECT_RATE,RECAPTURE rate in top-20 = 100.0% >= 30%. Recapture needed.,TODO: tên người ký duyệt (role),out/poc/ranked_review.csv
+2026-11-14T09:20:29+00:00,t02,REWORK,REWORK,HIGH_DEFECT_RATE,RECAPTURE rate in top-20 = 100.0% >= 30%. Recapture needed.,LuongDucManh (QC-Engineer),out/poc/ranked_review.csv
