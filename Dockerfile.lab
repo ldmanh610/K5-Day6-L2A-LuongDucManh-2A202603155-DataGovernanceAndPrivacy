@@ -1,0 +1,4 @@
+FROM python:3.11-slim
+WORKDIR /workspace
+RUN pip install --no-cache-dir numpy pandas pillow opencv-python-headless scikit-learn scipy matplotlib pyyaml pytest huggingface_hub
+CMD ["bash"]
