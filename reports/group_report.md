@@ -158,7 +158,7 @@ sssssssssssssssssssss                                                    [100%]
 
 | Hoc vien | Git email | Module / vai tro | Commit SHA | Trinh bay? |
 |---|---|---|---|---|
-| Luong Duc Manh - 2A202603155 | wazi2752004@gmail.com | Lead + Algorithm + Report + QA | 4c259ee, b3c88d8, 454d77b | Yes |
+| Luong Duc Manh - 2A202603155 | 369ldmanh@gmail.com | Lead + Algorithm + Report + QA | 4c259ee, b3c88d8, 454d77b | Yes |
 
 ## 11 - References
 
