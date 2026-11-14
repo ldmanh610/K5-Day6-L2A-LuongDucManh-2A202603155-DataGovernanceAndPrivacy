@@ -1,0 +1,2 @@
+FROM day6-fast:latest
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple scikit-learn
