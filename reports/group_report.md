@@ -10,7 +10,7 @@
 | Git URL | https://github.com/ldmanh610/K5-Day6-L2A-LuongDucManh-2A202603155-DataGovernanceAndPrivacy |
 | Tag demo-180m | git tag -a demo-180m -m "Demo freeze" && git push origin demo-180m |
 | Tag final-24h | git tag -a final-24h -m "Final submission" && git push origin final-24h |
-| Deadline | 2026-11-15 15:00 ICT |
+| Deadline | 2026-11-15 12:00 ICT |
 
 ## 01 - Problem statement
 
